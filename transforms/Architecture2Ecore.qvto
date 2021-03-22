@@ -1,0 +1,150 @@
+modeltype ECORE "strict" uses 'http://www.eclipse.org/emf/2002/Ecore';
+modeltype ARCHITECTURE "strict" uses 'http://e4sm-projekt.de/ecore/ar';
+modeltype COMMONS "strict" uses 'http://e4sm-projekt.de/ecore/com';
+modeltype ARCHITECTUREIMPL "strict" uses 'http://e4sm-projekt.de/ecore/ari';
+	
+
+transformation Architecture2Ecore(in ar:ARCHITECTURE, out outModel : ECORE );
+
+	main() {
+		log("Main: Architecture2Ecore");
+		
+		assert fatal (ar.objects()->size() > 1) with log ('The provided Architecture model is empty');
+		ar.rootObjects()[Architecture]->map architecture2Model();
+		
+		log("Main: Transformation completed.");
+	}
+	
+	helper String::asClassName() : EString {
+		return self.replaceAll("[\\s-]", "").firstToUpper();
+	}
+	
+	helper String::asSafeString() : EString {
+		return self.replaceAll("[\\s#\\\\{}<>\\|`^/\"]", "_").toLowerCase();
+	}
+	
+	query getClassifierType(p:COMMONS::Type) : EClassifier {
+	  var s:EString = p.toString();
+	    if(s = "INTEGER"){		
+			return ECORE::EInt.oclAsType(EClassifier);
+		}else if(s = "BOOLEAN"){
+			return ECORE::EBoolean.oclAsType(EClassifier);
+		}else if(s = "STRING"){
+			return ECORE::EString.oclAsType(EClassifier);
+		}else if(s = "DECIMAL"){
+			return ECORE::EFloat.oclAsType(EClassifier);
+		}
+		else{
+		log ("\t!! Warning: unknown parameter type " +  s);
+		};
+		return ECORE::EString.oclAsType(EClassifier);
+	}
+	
+	mapping Architecture::architecture2Model():EPackage{
+		assert fatal (self.name.size()>0) with log('An architecture does not have a name!', self);
+		log("Architecture "+self.name+" to EPackage");
+			
+		result.name := self.name.asClassName();
+		result.nsPrefix := self.name.asSafeString();
+		result.nsURI := "http://e4sm-projekt.de/ecore/gen/" + result.nsPrefix;
+		result.eClassifiers += self.modelelements[Node]->map node2Ecore();
+		result.eClassifiers += self.modelelements[Edge]->map edge2Ecore();
+		result.eClassifiers += self.modelelements[Container]->map container2Ecore();
+		result.eClassifiers += self.modelelements[Port]->map port2Ecore();
+		result.eClassifiers += self.modelelements[RangeConnection]->map rangeConnection2Ecore();
+		result.eClassifiers += self.modelelements[AddOn]->map addOn2Ecore();
+		
+		//Define and set the root class
+		var root : EClass = object EClass{};
+		root.name:=self.name + "Root";
+		root.eSuperTypes += ARCHITECTUREIMPL::Root.oclAsType(EClass);
+		result.eClassifiers += root;
+		//result.eClassifiers += self.diagrams[Diagram]->map diagram2Ecore();
+	}
+
+	mapping Node::node2Ecore():EClass {
+		assert fatal (self.name.size()>0) with log('A node does not have a name!', self);
+		log("Node "+self.name+" to EClass");
+	    result.name := self.name.asClassName();
+	    
+	    result._abstract := self.isAbstract;
+	    
+        if(self.isA.oclIsUndefined()){
+    	   result.eSuperTypes += ARCHITECTUREIMPL::Node.oclAsType(EClass);
+    	}
+    	else{
+    		log("\t isA relationship found to " + self.isA.name);
+    	   result.eSuperTypes += self.isA.late resolveone(EClass);
+    	};
+    	
+	    result.eStructuralFeatures:= self.properties->map property2Attribute();
+	}
+	
+	mapping Edge::edge2Ecore():EClass{
+		assert fatal (self.name.size()>0) with log('An edge does not have a name!', self);
+		log("Edge " + self.name + " to EClass");
+	    result.name := self.name.asClassName();
+        result._abstract := self.isAbstract;
+        
+	    if(self.isA.oclIsUndefined()){
+	    	result.eSuperTypes += ARCHITECTUREIMPL::Edge.oclAsType(EClass);
+	    }else{
+	    	result.eSuperTypes += self.isA.late resolveone(EClass);
+	    };
+	    result.eStructuralFeatures:= self.properties->map property2Attribute();
+	}
+	
+	mapping Container::container2Ecore():EClass{
+		assert fatal (self.name.size()>0) with log('A container does not have a name!', self);
+		log("Container " + self.name + " to EClass");
+	    result.name := self.name.asClassName();
+	    result._abstract := self.isAbstract;
+	        if(self.isA.oclIsUndefined()){
+	    	   result.eSuperTypes += ARCHITECTUREIMPL::Container.oclAsType(EClass);
+	    	}
+	    	else{
+	    	   result.eSuperTypes += self.isA.late resolveone(EClass);
+	    	};
+	    result.eStructuralFeatures:= self.properties->map property2Attribute();
+	}
+	
+	mapping Port::port2Ecore():EClass{
+		assert fatal (self.name.size()>0) with log('A port does not have a name!', self);
+		log("Port " + self.name + " to EClass");
+	    result.name := self.name.asClassName();
+        result._abstract := self.isAbstract; //TODO
+	    result.eSuperTypes += ARCHITECTUREIMPL::Port.oclAsType(EClass);
+	    result.eStructuralFeatures:= self.properties->map property2Attribute();
+	}
+	
+	mapping RangeConnection::rangeConnection2Ecore():EClass{
+		assert fatal (self.name.size()>0) with log('A RangeConnection does not have a name!', self);
+		log("RangeConnection " + self.name + " to EClass");
+	    result.name := self.name.asClassName();
+	    result._abstract := self.isAbstract;
+	    
+	        if(self.isA.oclIsUndefined()){
+	    	   result.eSuperTypes += ARCHITECTUREIMPL::RangeConnector.oclAsType(EClass);
+	    	}
+	    	else{
+	    	   result.eSuperTypes += self.isA.late resolveone(EClass);
+	    	};
+	    result.eStructuralFeatures:= self.properties->map property2Attribute();
+	}
+	
+	mapping AddOn::addOn2Ecore():EClass{
+		assert fatal (self.name.size()>0) with log('An Add-On does not have a name!', self);
+		log("AddOn " + self.name + " to EClass");
+	    result.name := self.name.asClassName();
+	    result._abstract := self.isAbstract; //TODO
+	    result.eSuperTypes += ARCHITECTUREIMPL::AddOn.oclAsType(EClass);
+	    result.eStructuralFeatures:= self.properties->map property2Attribute();
+	}
+	
+	mapping Property::property2Attribute():EAttribute when {self.name <> 'name'} {
+		assert fatal (self.name.size()>0) with log('A Property does not have a name!', self);
+		log("Property " + self.name + " to EAttribute");
+		result.name := self.name.asClassName();
+		result.eType := getClassifierType(self.type);
+		result.defaultValueLiteral := self.defaultValue;
+	}
